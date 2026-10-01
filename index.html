@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chess SDA - Plataforma Profesional de Ajedrez</title>
+  
+  <!-- Dependencias CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg-main: #161512;
+      --bg-panel: #262421;
+      --bg-card: #312e2b;
+      --accent-green: #81b64c;
+      --accent-green-hover: #a3d162;
+      --text-main: #ffffff;
+      --text-muted: #bababa;
+      --square-light: #f0d9b5;
+      --square-dark: #b58863;
+      --square-highlight: rgba(255, 255, 0, 0.4);
+      --square-premove: rgba(186, 85, 211, 0.5);
+      --square-move-dot: rgba(0, 0, 0, 0.25);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+    header {
+      background-color: var(--bg-panel);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #363431;
+    }
+    .brand { font-size: 1.6rem; font-weight: bold; color: var(--accent-green); display: flex; align-items: center; gap: 10px; }
+    .user-profile-header { display: flex; align-items: center; gap: 14px; background: var(--bg-card); padding: 6px 16px; border-radius: 20px; cursor: pointer; border: 1px solid #403d39; }
+    .user-profile-header:hover { border-color: var(--accent-green); }
+    .user-name { font-weight: 600; }
+    .flag { font-size: 1.2rem; }
+    .streak { color: #ff9800; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+
+    .app-container { display: flex; flex: 1; padding: 20px; gap: 20px; max-width: 1400px; margin: 0 auto; width: 100%; }
+    
+    .game-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .board-container { width: 100%; max-width: 580px; aspect-ratio: 1; position: relative; user-select: none; }
+    .chessboard { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; height: 100%; border-radius: 6px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+    
+    .square { position: relative; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+    .square.light { background-color: var(--square-light); }
+    .square.dark { background-color: var(--square-dark); }
+    .square.highlight { background-color: var(--square-highlight) !important; }
+    .square.premove { background-color: var(--square-premove) !important; }
+    
+    .piece { font-size: 3.2rem; line-height: 1; z-index: 3; transition: transform 0.08s ease; display: flex; align-items: center; justify-content: center; }
+    .piece.white-piece { color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.6), 0 0 2px #000; }
+    .piece.black-piece { color: #111111; text-shadow: 0 0 3px #ffffff, 0 0 1px #ffffff; }
+
+    .sidebar { width: 440px; background-color: var(--bg-panel); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .tabs { display: flex; gap: 6px; border-bottom: 2px solid var(--bg-card); padding-bottom: 8px; }
+    .tab-btn { flex: 1; padding: 10px 4px; background: none; border: none; color: var(--text-muted); font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 0.85rem; }
+    .tab-btn.active { background-color: var(--bg-card); color: var(--text-main); border-bottom: 2px solid var(--accent-green); }
+    
+    .panel-content { display: none; flex-direction: column; gap: 16px; height: 100%; overflow-y: auto; max-height: 640px; padding-right: 4px; }
+    .panel-content.active { display: flex; }
+
+    .btn-main { background-color: var(--accent-green); color: white; padding: 12px; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; width: 100%; transition: background 0.2s; }
+    .btn-main:hover { background-color: var(--accent-green-hover); }
+
+    /* Lista de Bots Top Mundial */
+    .bot-list { display: flex; flex-direction: column; gap: 8px; max-height: 480px; overflow-y: auto; padding-right: 4px; }
+    .bot-card { background: var(--bg-card); padding: 10px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 1px solid transparent; transition: border-color 0.2s; }
+    .bot-card:hover, .bot-card.selected { border-color: var(--accent-green); }
+    .bot-info { display: flex; flex-direction: column; }
+    .bot-name { font-weight: bold; font-size: 0.95rem; }
+    .bot-country { font-size: 0.8rem; color: var(--text-muted); }
+    .bot-elo { background: var(--bg-main); padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; color: var(--accent-green); }
+
+    /* Perfil de Usuario Avanzado */
+    .profile-card { background: var(--bg-card); padding: 16px; border-radius: 8px; display: flex; flex-direction: column; gap: 12px; }
+    .profile-header { display: flex; align-items: center; gap: 12px; }
+    .profile-avatar { width: 50px; height: 50px; background: var(--accent-green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; }
+    
+    .color-filter { display: flex; gap: 8px; background: var(--bg-main); padding: 4px; border-radius: 6px; }
+    .filter-btn { flex: 1; padding: 8px; border: none; background: none; color: var(--text-muted); font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 0.85rem; }
+    .filter-btn.active { background: var(--bg-card); color: white; border: 1px solid var(--accent-green); }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 8px; }
+    .stat-box { background: var(--bg-main); padding: 10px; border-radius: 6px; text-align: center; }
+    .stat-num { font-size: 1.2rem; font-weight: bold; }
+    .stat-lbl { font-size: 0.75rem; color: var(--text-muted); }
+
+    .user-search-box { display: flex; gap: 8px; }
+    .search-input { flex: 1; padding: 8px 12px; background: var(--bg-card); border: 1px solid #403d39; color: white; border-radius: 4px; }
+
+    .chart-container { background: var(--bg-card); padding: 12px; border-radius: 8px; height: 180px; position: relative; }
+  </style>
+</head>
+<body>
+
+  <!-- Header Superior -->
+  <header>
+    <div class="brand"><i class="fa-solid fa-chess-knight"></i> Chess SDA</div>
+    <div class="user-profile-header" onclick="viewMyProfile()">
+      <span class="flag">🇵🇪</span>
+      <span class="user-name" id="hdr-username">Ajedrecista_4821</span>
+      <span id="hdr-league" style="font-size: 0.75rem; background: #cd7f32; padding: 2px 8px; border-radius: 10px;">Bronce</span>
+      <div class="streak"><i class="fa-solid fa-fire"></i> <span id="hdr-streak">1</span>d</div>
+    </div>
+  </header>
+
+  <div class="app-container">
+    <!-- Tablero de Ajedrez -->
+    <div class="game-section">
+      <div class="board-container">
+        <div id="chessboard" class="chessboard"></div>
+      </div>
+    </div>
+
+    <!-- Panel Lateral -->
+    <div class="sidebar">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('bots', this)">Top Mundial</button>
+        <button class="tab-btn" onclick="switchTab('online', this)">En Línea</button>
+        <button class="tab-btn" onclick="switchTab('profile', this)">Perfiles</button>
+      </div>
+
+      <!-- Tab 1: Bots Top Mundiales -->
+      <div id="tab-bots" class="panel-content active">
+        <h4 style="color: var(--text-muted);">Selecciona un Bot (Top 30 Mundial)</h4>
+        <div class="bot-list" id="top-bots-list"></div>
+        <button class="btn-main" onclick="startBotGame()"><i class="fa-solid fa-play"></i> Desafiar Jugador</button>
+      </div>
+
+      <!-- Tab 2: Multijugador PeerJS -->
+      <div id="tab-online" class="panel-content">
+        <div style="background: var(--bg-card); padding: 12px; border-radius: 8px;">
+          <label style="font-size: 0.85rem; font-weight: bold;">Tu ID de Jugador:</label>
+          <input type="text" id="my-peer-id" class="search-input" readonly value="Generando ID..." style="width: 100%; margin-top: 4px;">
+        </div>
+      </div>
+
+      <!-- Tab 3: Perfiles y Estadísticas Desglosadas -->
+      <div id="tab-profile" class="panel-content">
+        <!-- Búsqueda de Usuario -->
+        <div class="user-search-box">
+          <input type="text" id="search-user-input" class="search-input" placeholder="Buscar jugador por usuario...">
+          <button class="btn-main" style="width: auto; padding: 8px 14px;" onclick="searchProfile()"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+
+        <!-- Tarjeta del Perfil Consultado -->
+        <div class="profile-card">
+          <div class="profile-header">
+            <div class="profile-avatar" id="prof-avatar">A</div>
+            <div>
+              <div style="font-weight: bold; font-size: 1.1rem;" id="prof-name">Ajedrecista_4821</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);" id="prof-elo-lbl">ELO Oficial: -- (Bronce)</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-edit-name" style="background: none; border: 1px solid #555; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;" onclick="changeUsername()">Editar Mi Nombre</button>
+            <button id="btn-my-profile" style="background: none; border: 1px solid var(--accent-green); color: var(--accent-green); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; display: none;" onclick="viewMyProfile()">Ver Mi Perfil</button>
+          </div>
+        </div>
+
+        <!-- Filtro por Bando (Todas / Blancas / Negras) -->
+        <h4 style="color: var(--text-muted);">Estadísticas de Juego</h4>
+        <div class="color-filter">
+          <button class="filter-btn active" onclick="setSideFilter('all', this)">Todas</button>
+          <button class="filter-btn" onclick="setSideFilter('white', this)">♔ Blancas</button>
+          <button class="filter-btn" onclick="setSideFilter('black', this)">♚ Negras</button>
+        </div>
+
+        <!-- Métricas Desglosadas -->
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-num" id="stat-played">0</div>
+            <div class="stat-lbl">Partidas Jugadas</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" style="color: var(--accent-green);" id="stat-wins">0</div>
+            <div class="stat-lbl">Victorias</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" style="color: #e74c3c;" id="stat-losses">0</div>
+            <div class="stat-lbl">Derrotas</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" style="color: #f39c12;" id="stat-draws">0</div>
+            <div class="stat-lbl">Empates</div>
+          </div>
+        </div>
+
+        <!-- Gráfico de Distribución -->
+        <div class="chart-container">
+          <canvas id="statsChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const game = new Chess();
+    let selectedSquare = null;
+    let selectedBot = null;
+    let currentFilterSide = 'all';
+    let activeProfileUser = 'me';
+    let chartInstance = null;
+
+    // Lista del Top 30 Mundial
+    const topMundialBots = [
+      { rank: 1, name: "Magnus Carlsen", country: "Noruega", elo: 2823.0 },
+      { rank: 2, name: "Hikaru Nakamura", country: "Estados Unidos", elo: 2792.0 },
+      { rank: 3, name: "Fabiano Caruana", country: "Estados Unidos", elo: 2789.0 },
+      { rank: 4, name: "Javokhir Sindarov", country: "Uzbekistán", elo: 2781.5 },
+      { rank: 5, name: "Nodirbek Abdusattorov", country: "Uzbekistán", elo: 2779.5 },
+      { rank: 6, name: "Wesley So", country: "Estados Unidos", elo: 2769.8 },
+      { rank: 7, name: "Praggnanandhaa Rameshbabu", country: "India", elo: 2763.2 },
+      { rank: 8, name: "Vincent Keymer", country: "Alemania", elo: 2760.8 },
+      { rank: 9, name: "Wei Yi", country: "China", elo: 2758.1 },
+      { rank: 10, name: "Alireza Firouzja", country: "Francia", elo: 2757.0 },
+      { rank: 11, name: "Anish Giri", country: "Países Bajos", elo: 2752.0 },
+      { rank: 12, name: "Arjun Erigaisi", country: "India", elo: 2746.5 },
+      { rank: 13, name: "Jan-Krzysztof Duda", country: "Polonia", elo: 2740.8 },
+      { rank: 14, name: "Viswanathan Anand", country: "India", elo: 2739.0 },
+      { rank: 15, name: "Le Quang Liem", country: "Vietnam", elo: 2732.0 },
+      { rank: 16, name: "Leinier Domínguez Pérez", country: "Estados Unidos", elo: 2732.0 },
+      { rank: 17, name: "Yagiz Kaan Erdogmus", country: "Turquía", elo: 2731.1 },
+      { rank: 18, name: "M. Amin Tabatabaei", country: "Irán", elo: 2727.7 },
+      { rank: 19, name: "Levon Aronian", country: "Estados Unidos", elo: 2724.7 },
+      { rank: 20, name: "Ding Liren", country: "China", elo: 2723.0 },
+      { rank: 21, name: "Ian Nepomniachtchi", country: "FIDE (Rusia)", elo: 2719.0 },
+      { rank: 22, name: "Hans Moke Niemann", country: "Estados Unidos", elo: 2717.3 },
+      { rank: 23, name: "Maxime Vachier-Lagrave", country: "Francia", elo: 2717.0 },
+      { rank: 24, name: "Jorden Van Foreest", country: "Países Bajos", elo: 2716.1 },
+      { rank: 25, name: "Dmitry Andreikin", country: "FIDE (Rusia)", elo: 2714.0 },
+      { rank: 26, name: "Nodirbek Yakubboev", country: "Uzbekistán", elo: 2711.7 },
+      { rank: 27, name: "Richard Rapport", country: "Hungría", elo: 2711.2 },
+      { rank: 28, name: "Shakhriyar Mamedyarov", country: "Azerbaiyán", elo: 2710.3 },
+      { rank: 29, name: "Gukesh D", country: "India", elo: 2710.1 },
+      { rank: 30, name: "Nihal Sarin", country: "India", elo: 2708.7 }
+    ];
+
+    // Base de Datos de Perfiles
+    const profilesDB = {
+      me: {
+        name: "Ajedrecista_4821",
+        elo: "--",
+        league: "Bronce",
+        stats: {
+          all: { played: 0, wins: 0, losses: 0, draws: 0 },
+          white: { played: 0, wins: 0, losses: 0, draws: 0 },
+          black: { played: 0, wins: 0, losses: 0, draws: 0 }
+        }
+      },
+      "Carlos_GM": {
+        name: "Carlos_GM",
+        elo: 2310,
+        league: "Gran Maestro",
+        stats: {
+          all: { played: 140, wins: 95, losses: 30, draws: 15 },
+          white: { played: 72, wins: 52, losses: 12, draws: 8 },
+          black: { played: 68, wins: 43, losses: 18, draws: 7 }
+        }
+      }
+    };
+
+    const pieceUnicode = {
+      'w-p': '♙', 'w-r': '♖', 'w-n': '♘', 'w-b': '♗', 'w-q': '♕', 'w-k': '♔',
+      'b-p': '♟', 'b-r': '♜', 'b-n': '♞', 'b-b': '♝', 'b-q': '♛', 'b-k': '♚'
+    };
+
+    function renderTopBotsList() {
+      const container = document.getElementById('top-bots-list');
+      container.innerHTML = '';
+
+      topMundialBots.forEach(bot => {
+        const card = document.createElement('div');
+        card.className = 'bot-card';
+        card.onclick = () => selectBot(bot, card);
+        card.innerHTML = `
+          <div class="bot-info">
+            <span class="bot-name">#${bot.rank} ${bot.name}</span>
+            <span class="bot-country">${bot.country}</span>
+          </div>
+          <span class="bot-elo">${bot.elo}</span>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function selectBot(bot, element) {
+      document.querySelectorAll('.bot-card').forEach(c => c.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedBot = bot;
+    }
+
+    function startBotGame() {
+      if (!selectedBot) {
+        alert("Por favor, selecciona un bot de la lista.");
+        return;
+      }
+      alert(`Iniciando partida contra ${selectedBot.name} (${selectedBot.elo} ELO)`);
+    }
+
+    function createBoard() {
+      const boardEl = document.getElementById('chessboard');
+      boardEl.innerHTML = '';
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const squareId = `${String.fromCharCode(97 + col)}${8 - row}`;
+          const square = document.createElement('div');
+          square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+          square.dataset.square = squareId;
+          square.addEventListener('click', () => handleSquareClick(squareId));
+          boardEl.appendChild(square);
+        }
+      }
+      renderPieces();
+    }
+
+    function renderPieces() {
+      const board = game.board();
+      document.querySelectorAll('.square').forEach(sq => sq.innerHTML = '');
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = board[r][c];
+          if (piece) {
+            const squareId = `${String.fromCharCode(97 + c)}${8 - r}`;
+            const sqEl = document.querySelector(`[data-square="${squareId}"]`);
+            const pieceEl = document.createElement('div');
+            const pieceKey = `${piece.color}-${piece.type}`;
+            pieceEl.className = `piece ${piece.color === 'w' ? 'white-piece' : 'black-piece'}`;
+            pieceEl.innerText = pieceUnicode[pieceKey] || piece.type.toUpperCase();
+            sqEl.appendChild(pieceEl);
+          }
+        }
+      }
+    }
+
+    function handleSquareClick(sq) {
+      if (game.game_over()) return;
+      if (selectedSquare) {
+        const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
+        if (move) {
+          selectedSquare = null;
+          renderPieces();
+          return;
+        }
+      }
+      const piece = game.get(sq);
+      if (piece && piece.color === game.turn()) {
+        selectedSquare = sq;
+      } else {
+        selectedSquare = null;
+      }
+    }
+
+    function updateProfileUI() {
+      const userData = profilesDB[activeProfileUser] || profilesDB['me'];
+      
+      document.getElementById('prof-name').innerText = userData.name;
+      document.getElementById('prof-avatar').innerText = userData.name.charAt(0).toUpperCase();
+      document.getElementById('prof-elo-lbl').innerText = `ELO Oficial: ${userData.elo} (${userData.league})`;
+
+      if (activeProfileUser === 'me') {
+        document.getElementById('btn-edit-name').style.display = 'inline-block';
+        document.getElementById('btn-my-profile').style.display = 'none';
+      } else {
+        document.getElementById('btn-edit-name').style.display = 'none';
+        document.getElementById('btn-my-profile').style.display = 'inline-block';
+      }
+
+      const st = userData.stats[currentFilterSide];
+      document.getElementById('stat-played').innerText = st.played;
+      document.getElementById('stat-wins').innerText = st.wins;
+      document.getElementById('stat-losses').innerText = st.losses;
+      document.getElementById('stat-draws').innerText = st.draws;
+
+      renderChart(st.wins, st.losses, st.draws);
+    }
+
+    function setSideFilter(side, btn) {
+      currentFilterSide = side;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateProfileUI();
+    }
+
+    function searchProfile() {
+      const query = document.getElementById('search-user-input').value.trim();
+      if (!query) return;
+
+      if (profilesDB[query]) {
+        activeProfileUser = query;
+        updateProfileUI();
+      } else {
+        alert(`No se encontró el usuario "${query}". Intenta buscar: Carlos_GM`);
+      }
+    }
+
+    function viewMyProfile() {
+      activeProfileUser = 'me';
+      switchTab('profile');
+      updateProfileUI();
+    }
+
+    function changeUsername() {
+    
